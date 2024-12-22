@@ -1,9 +1,11 @@
 import os
 import json
+
 from typing import Dict, List
 from functools import reduce
 
 import networkx as nx
+
 from dotenv import load_dotenv
 from sklearn.cluster import SpectralClustering
 from langchain_openai import ChatOpenAI
