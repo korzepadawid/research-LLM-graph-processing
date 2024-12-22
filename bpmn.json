@@ -1,0 +1,185 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "name": "Start Event",
+      "type": "event",
+      "subtype": "start",
+      "description": "This is where the process begins. A trigger, such as a user action or a system event, starts the workflow.",
+      "metadata": { "position": { "x": 100, "y": 100 } },
+      "edges": [
+        { "to": 2, "label": "Start to Task A", "type": "sequence flow" }
+      ],
+      "action": "Console.WriteLine(\"Process started.\");"
+    },
+    {
+      "id": 2,
+      "name": "Task A",
+      "type": "task",
+      "subtype": "user task",
+      "description": "A user fills out a form to provide initial data required for further processing. This task is interactive and requires manual input.",
+      "metadata": { "position": { "x": 200, "y": 100 } },
+      "edges": [
+        { "to": 3, "label": "Task A to Decision", "type": "sequence flow" }
+      ],
+      "action": "string userData = \"User input data\"; Console.WriteLine(userData);"
+    },
+    {
+      "id": 3,
+      "name": "Decision",
+      "type": "gateway",
+      "subtype": "exclusive",
+      "description": "A decision point where the process flow diverges based on specific conditions. Only one path is selected based on the given rules.",
+      "metadata": { "position": { "x": 300, "y": 100 } },
+      "edges": [
+        { "to": 4, "label": "Decision to Task B", "type": "sequence flow", "condition": "Condition 1" },
+        { "to": 5, "label": "Decision to Task C", "type": "sequence flow", "condition": "Condition 2" }
+      ],
+      "action": "string nextTask = (userData.Contains(\"Condition\") ? \"Task B\" : \"Task C\"); Console.WriteLine(nextTask);"
+    },
+    {
+      "id": 4,
+      "name": "Task B",
+      "type": "task",
+      "subtype": "service task",
+      "description": "An automated service task that validates the data provided by the user. This task is performed by the system without human interaction.",
+      "metadata": { "position": { "x": 400, "y": 50 } },
+      "edges": [
+        { "to": 6, "label": "Task B to Task D", "type": "sequence flow" }
+      ],
+      "action": "bool isValid = !string.IsNullOrEmpty(userData); Console.WriteLine(isValid ? \"Valid data\" : \"Invalid data\");"
+    },
+    {
+      "id": 5,
+      "name": "Task C",
+      "type": "task",
+      "subtype": "manual task",
+      "description": "A manual task performed by a clerk. The clerk verifies the information provided against existing records.",
+      "metadata": { "position": { "x": 400, "y": 150 } },
+      "edges": [
+        { "to": 6, "label": "Task C to Task D", "type": "sequence flow" }
+      ],
+      "action": "bool isVerified = (userData == \"Verified data\"); Console.WriteLine(isVerified ? \"Data verified\" : \"Data not verified\");"
+    },
+    {
+      "id": 6,
+      "name": "Task D",
+      "type": "task",
+      "subtype": "script task",
+      "description": "A script task that executes predefined logic to process the data. This task might involve calculations or transformations.",
+      "metadata": { "position": { "x": 500, "y": 100 } },
+      "edges": [
+        { "to": 7, "label": "Task D to Parallel Gateway", "type": "sequence flow" },
+        { "to": 12, "label": "Error Detected", "type": "error flow" }
+      ],
+      "action": "string processedData = \"Processed data from input: \" + userData; Console.WriteLine(processedData);"
+    },
+    {
+      "id": 7,
+      "name": "Parallel Gateway",
+      "type": "gateway",
+      "subtype": "parallel",
+      "description": "A parallel gateway that splits the process flow into multiple paths. All outgoing paths are executed simultaneously.",
+      "metadata": { "position": { "x": 600, "y": 100 } },
+      "edges": [
+        { "to": 8, "label": "Parallel Gateway to Task E", "type": "parallel flow" },
+        { "to": 9, "label": "Parallel Gateway to Task F", "type": "parallel flow" }
+      ],
+      "action": "List<string> nextTasks = new List<string> { \"Task E\", \"Task F\" }; nextTasks.ForEach(task => Console.WriteLine(task));"
+    },
+    {
+      "id": 8,
+      "name": "Task E",
+      "type": "task",
+      "subtype": "user task",
+      "description": "A parallel task where a user performs a specific action, such as reviewing a document or providing approval.",
+      "metadata": { "position": { "x": 700, "y": 50 } },
+      "edges": [
+        { "to": 10, "label": "Task E to Timer Event", "type": "sequence flow" }
+      ],
+      "action": "bool isApproved = true; Console.WriteLine(isApproved ? \"Task E approved\" : \"Task E rejected\");"
+    },
+    {
+      "id": 9,
+      "name": "Task F",
+      "type": "task",
+      "subtype": "user task",
+      "description": "Another parallel task where a user might perform additional actions, such as notifying stakeholders or sending a report.",
+      "metadata": { "position": { "x": 700, "y": 150 } },
+      "edges": [
+        { "to": 10, "label": "Task F to Timer Event", "type": "sequence flow" }
+      ],
+      "action": "string notificationStatus = \"Notification sent to stakeholders\"; Console.WriteLine(notificationStatus);"
+    },
+    {
+      "id": 10,
+      "name": "Intermediate Timer Event",
+      "type": "event",
+      "subtype": "timer",
+      "description": "A timer event that introduces a delay or wait period before the next task can start.",
+      "metadata": { "position": { "x": 800, "y": 50 } },
+      "edges": [
+        { "to": 11, "label": "Timer to Task G", "type": "sequence flow" }
+      ],
+      "action": "System.Threading.Thread.Sleep(5000); Console.WriteLine(\"Timer expired\");"
+    },
+    {
+      "id": 11,
+      "name": "Task G",
+      "type": "task",
+      "subtype": "service task",
+      "description": "An automated task that sends an email notification to stakeholders about the progress of the workflow.",
+      "metadata": { "position": { "x": 900, "y": 50 } },
+      "edges": [
+        { "to": 14, "label": "Task G to Notification Task", "type": "sequence flow" }
+      ],
+      "action": "string message = \"Workflow completed.\"; Console.WriteLine(message);"
+    },
+    {
+      "id": 12,
+      "name": "Error Event",
+      "type": "event",
+      "subtype": "error",
+      "description": "An error handling event that triggers if an issue is detected in previous tasks.",
+      "metadata": { "position": { "x": 600, "y": 200 } },
+      "edges": [
+        { "to": 13, "label": "Error Event to Task H", "type": "sequence flow" }
+      ],
+      "action": "string errorDetails = \"Error detected in process\"; Console.WriteLine(errorDetails);"
+    },
+    {
+      "id": 13,
+      "name": "Task H",
+      "type": "task",
+      "subtype": "user task",
+      "description": "A recovery task where a user fixes the errors identified in the process.",
+      "metadata": { "position": { "x": 700, "y": 200 } },
+      "edges": [
+        { "to": 14, "label": "Task H to Notification Task", "type": "sequence flow" }
+      ],
+      "action": "string errorDetails = \"Fixing error\"; Console.WriteLine(errorDetails);"
+    },
+    {
+      "id": 14,
+      "name": "Notification Task",
+      "type": "task",
+      "subtype": "service task",
+      "description": "A task that logs the completion of the process and sends a notification.",
+      "metadata": { "position": { "x": 800, "y": 100 } },
+      "edges": [
+        { "to": 15, "label": "Notification Task to End Event", "type": "sequence flow" }
+      ],
+      "action": "string logDetails = \"Process completed\"; Console.WriteLine(logDetails);"
+    },
+    {
+      "id": 15,
+      "name": "End Event",
+      "type": "event",
+      "subtype": "end",
+      "description": "The process ends here after all tasks and events have been completed successfully.",
+      "metadata": { "position": { "x": 900, "y": 100 } },
+      "edges": [],
+      "action": "Console.WriteLine(\"Process ended.\");"
+    }
+  ]
+}
