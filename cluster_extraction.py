@@ -1,6 +1,10 @@
 import os
 import json
+import threading
+import time
 
+
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
 from functools import reduce
 
@@ -30,7 +34,7 @@ def detect_communities(G: nx.Graph, n_clusters: int = 5) -> Dict[int, List[int]]
         n_clusters (int, optional): The number of clusters to form. Defaults to 5.
 
     Returns:
-        Dict[int, List[int]]: A dictionary mapping each cluster index to a list of node IDs 
+        Dict[int, List[int]]: A dictionary mapping each cluster index to a list of node IDs
         belonging to that cluster.
     """
     adj_matrix = nx.to_numpy_array(G)
@@ -43,50 +47,45 @@ def detect_communities(G: nx.Graph, n_clusters: int = 5) -> Dict[int, List[int]]
     return communities
 
 
-def map_phase(query: str) -> callable:
+def map_func(query: str, nodes: str) -> str:
     """
-    Create a function that maps a list of graph nodes to a JSON object containing
-    relevant node IDs based on a user query.
-
-    The generated function, `map_func`, takes in a string representation of nodes and 
-    returns a JSON string with a list of node IDs related to the query. It leverages a 
-    language model to interpret the query and select relevant nodes.
+    Threaded version of the map phase to process nodes.
 
     Args:
         query (str): The user query or coding task to base the node selection on.
+        nodes (str): The string representation of the nodes to process.
 
     Returns:
-        callable: A function that takes in a string of nodes and returns a JSON string 
-        with a list of relevant node IDs.
+        str: A JSON string with a list of relevant node IDs.
     """
+    template = """
+    # BPMN Assistant Prompt
 
-    def map_func(nodes: str) -> str:
-        template = """
-        # BPMN Assistant Prompt
+    You are a BPMN expert and assistant on a low-code platform.  
 
-        You are a BPMN expert and assistant on a low-code platform.  
+    1. Select the graph nodes that are most relevant to the given user query or coding task.  
+    2. Return the result as a JSON object containing a list of node IDs.  
 
-        1. Select the graph nodes that are most relevant to the given user query or coding task.  
-        2. Return the result as a JSON object containing a list of node IDs.  
-
-        ## Query
-        {query}
-        
-        ## Nodes
-        {nodes}
-        """
-        llm = ChatOpenAI(
-            temperature=0.0,
-            model=os.environ.get("BIELIK_MODEL"),
-            base_url=os.environ.get("BIELIK_BASE_URL"),
-            api_key=os.environ.get("BIELIK_API_KEY"),
-        )
-        prompt = PromptTemplate.from_template(template)
-        parser = JsonOutputParser(pydantic_object=NodeIds)
-        chain = prompt | llm | parser
-        return chain.invoke(input={"query": query, "nodes": nodes})
-
-    return map_func
+    ## Query
+    {query}
+    
+    ## Nodes
+    {nodes}
+    """
+    llm = ChatOpenAI(
+        temperature=0.0,
+        model=os.environ.get("BIELIK_MODEL"),
+        base_url=os.environ.get("BIELIK_BASE_URL"),
+        api_key=os.environ.get("BIELIK_API_KEY"),
+    )
+    prompt = PromptTemplate.from_template(template)
+    parser = JsonOutputParser(pydantic_object=NodeIds)
+    chain = prompt | llm | parser
+    thread_name = threading.current_thread().name
+    print(f"Thread {thread_name} calling model {llm.model_name}...")
+    res = chain.invoke(input={"query": query, "nodes": nodes})
+    print(f"Thread {thread_name} received response: {res}")
+    return res
 
 
 def reduce_phase(G: nx.Graph) -> callable:
@@ -106,8 +105,9 @@ def reduce_phase(G: nx.Graph) -> callable:
         node IDs and returns a concatenated string of the JSON objects representing
         the nodes.
     """
+
     def reduce_func(accumulator: str, related_nodes: dict) -> str:
-        for node_id in related_nodes["nodeIds"]:
+        for node_id in related_nodes.get("nodeIds", []):
             print(json.dumps(G.nodes[node_id]))
             accumulator += json.dumps(G.nodes[node_id])
         return accumulator
@@ -140,14 +140,15 @@ def prepare_summaries(G: nx.Graph, communities: Dict[int, List[int]]) -> List[st
     return summaries
 
 
-def mapreduce(G: nx.Graph, query: str, communities: Dict[int, List[int]]) -> str:
+def mapreduce(
+    G: nx.Graph,
+    query: str,
+    communities: Dict[int, List[int]],
+) -> str:
     """
-    Maps a list of summaries to a list of answers, then reduces the list of answers to a single answer.
+    MapReduce function using threads to process graph communities in parallel.
 
-    The mapping function takes in a string summary and returns a string answer.
-    The reducing function takes in two string answers and returns a single string answer.
-
-    Parameters:
+    Args:
         G (nx.Graph): The input graph on which the nodes exist.
         query (str): The user query or coding task to base the node selection on.
         communities (Dict[int, List[int]]): A dictionary mapping each cluster index
@@ -156,9 +157,16 @@ def mapreduce(G: nx.Graph, query: str, communities: Dict[int, List[int]]) -> str
     Returns:
         str: A single string answer.
     """
+    start_time = time.time()
     summaries = prepare_summaries(G, communities)
-    nodes = map(map_phase(query), summaries)
-    context = reduce(reduce_phase(G), nodes, "")
+
+    with ThreadPoolExecutor() as executor:
+        map_results = list(
+            executor.map(lambda summary: map_func(query, summary), summaries)
+        )
+
+    context = reduce(reduce_phase(G), map_results, "")
+    print("--- %s seconds ---" % (time.time() - start_time))
     return context
 
 
@@ -175,7 +183,8 @@ def main() -> None:
                 G.add_edge(node["id"], edge["to"], **edge)
 
     communities = detect_communities(G)
-    query = "filter nextTasks by user input"
+    query = "Where is the nextTasks list?"
+    print("Query:", query)
     print("===================")
     answer = mapreduce(G, query, communities)
     print("Answer:", answer)
